@@ -1,12 +1,15 @@
 import { useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
-import { Image, Send, X } from "lucide-react";
+import { Image, Loader, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { io } from "socket.io-client";
 
 const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+  const [isTyping, setIsTyping] = useState(false); // State for typing indicator
   const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null); // Ref to manage typing timeout
   const { sendMessage } = useChatStore();
 
   const handleImageChange = (e) => {
@@ -46,6 +49,23 @@ const MessageInput = () => {
       console.error("Failed to send message:", error);
     }
   };
+  const handleTyping = (e) => {
+    setText(e.target.value);
+
+    if (!isTyping) {
+      setIsTyping(true);
+      io.emit("typing", { recipientId, isTyping: true });
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      io.emit("typing", { recipientId, isTyping: false });
+    }, 1000);
+  };
 
   return (
     <div className="p-4 w-full">
@@ -69,6 +89,13 @@ const MessageInput = () => {
         </div>
       )}
 
+      {isTyping && (
+        <div className="text-sm text-gray-500 mb-2 flex items-center">
+          <Loader size={16} className="mr-1 animate-spin" />
+          Typing...
+        </div>
+      )}
+
       <form onSubmit={handleSendMessage} className="flex items-center gap-2">
         <div className="flex-1 flex gap-2">
           <input
@@ -76,7 +103,7 @@ const MessageInput = () => {
             className="w-full input input-bordered rounded-lg input-sm sm:input-md"
             placeholder="Type a message..."
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleTyping}
           />
           <input
             type="file"
